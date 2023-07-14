@@ -628,19 +628,19 @@ def draw_heatmaps(df_lamp, matrix_points, list_combinations_methods, selected_da
     
     if len(agreement_points)!= 0:
         agreement_fig = px.imshow(df.loc[df.index[agreement_points]],text_auto=False,color_continuous_scale='Blues',
-                                  zmin=0, zmax=1, labels=dict(color="Agreement Level"),
+                                  zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
                         #x=list_combinations_methods#,width=2000, height=800
                    )
     
     if len(fuzzy_points)!= 0:
         fuzzy_fig = px.imshow(df.loc[df.index[fuzzy_points]],text_auto=False,color_continuous_scale='Blues',
-                              zmin=0, zmax=1, labels=dict(color="Agreement Level"),
+                              zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
                         #x=list_combinations_methods#,width=2000, height=800
                    )
         
     if len(disagreement_points)!= 0:
         disagreement_fig = px.imshow(df.loc[df.index[disagreement_points]],text_auto=False,color_continuous_scale='Blues',
-                                     zmin=0, zmax=1, labels=dict(color="Agreement Level"),
+                                     zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
                         #x=list_combinations_methods#,width=2000, height=800
                    )
         
