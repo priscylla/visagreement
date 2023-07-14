@@ -709,8 +709,26 @@ def draw_features_disagreement(methods, selected_dataset, ranking_size, metric, 
     
     df_long=pd.melt(df , id_vars=['Combinations'])
     df_long.columns = ['Combinations', 'Features', '% disagreements']
-    fig = px.line(df_long, x='Combinations', y='% disagreements', color='Features', markers=True)
-    fig.update_layout(yaxis_range=[-0.1,1.1])
+    
+    fig = go.Figure()
+    for feature in df_long['Features'].value_counts().index.to_list():
+        df_one_feature = df_long[df_long['Features'] == feature]
+        fig.add_trace(go.Bar(
+            y= df_one_feature['Combinations'].values,
+            x= df_one_feature['% disagreements'].values,
+            name= str(feature),
+            orientation='h',
+        ))
+    
+    fig.update_layout(
+        barmode='stack',
+        xaxis=dict(
+            showgrid=False,
+            showline=False,
+            showticklabels=False,
+            zeroline=False,
+        ),
+    )
     
     return fig
 
