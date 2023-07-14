@@ -444,18 +444,23 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
     df['Index'] = df.index    
     
     
-    fig = px.scatter(df, x="Comp_1", y="Comp_2", color="Area", 
+    fig = px.scatter(df, x="Comp_1", y="Comp_2", color="Area",
+                     marginal_x="histogram", marginal_y="histogram",
                      hover_data={
                          'Area':True,
                          'Index': True,
                          'Comp_1':False,
                          'Comp_2':False,
                      },
-                     #hover_data=['Index'],
-                     #width=600, height=400,
+                    color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73", "#f0e442"],
                     category_orders={ # replaces default order by column name
                     "Area": ["Neutral Area", "Disagreement Area", "Agreement Area", "Control Point"]}
                     )
+    fig.update_traces(marker=dict(size=10,
+                              line=dict(width=1,
+                                        color='DarkSlateGrey')),
+                  selector=dict(mode='markers'))
+    
     fig.update_layout(legend=dict(
         orientation="h",
         yanchor="bottom",
@@ -491,11 +496,17 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                              'Comp_1':False,
                              'Comp_2':False,
                          },
-                         #hover_data=['Index', 'Area'],
+                         color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73", "#f0e442"],
                          category_orders={ # replaces default order by column name
                              "Area": ["Neutral Area", "Disagreement Area", "Agreement Area"]
                          }
                     )
+        
+        fig.update_traces(marker=dict(size=8,
+                              line=dict(width=1,
+                                        color='DarkSlateGrey')),
+                  selector=dict(mode='markers'))
+        
         fig.update_layout(legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -528,7 +539,10 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                 hovertemplate = "%{text}",
                 opacity=0.5,
                 showlegend=False,
-                name='Not selected'
+                name='Not selected',
+                marker=dict(size=8,
+                              line=dict(width=1,
+                                        color='DarkSlateGrey'))
             )
         )
         # Add second scatter trace with medium sized markers
@@ -542,10 +556,10 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                 hovertemplate = "%{text}",
                 opacity=1.0,
                 showlegend=False,
-                 name='Selected',
-                marker=dict(
-                    color='#0d2a68',
-                ),
+                name='Selected',
+                marker=dict(size=8,color='#0d2a68',
+                              line=dict(width=1,
+                                        color='DarkSlateGrey')),
             )
         )
         #Layout of the chart
@@ -588,10 +602,12 @@ def draw_boxplot_measures(df_lamp, methods, selected_dataset):
     df_sens['area'] = df_sens.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
     df_inf['area'] = df_inf.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
 
-    fig_sens = px.box(df_sens, x="method", y="sensitivity", color="area")
+    fig_sens = px.box(df_sens, x="method", y="sensitivity", color="area",
+                     color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73"])
     fig_sens.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
     
-    fig_inf = px.box(df_inf, x="method", y="infidelity", color="area")
+    fig_inf = px.box(df_inf, x="method", y="infidelity", color="area",
+                    color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73"])
     fig_inf.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
     
     return fig_inf, fig_sens
