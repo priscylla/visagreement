@@ -181,20 +181,6 @@ controls = dbc.Card(
     #style={'height':'60vh'},
 )
 
-
-dropdown_stat_measure = html.Div(
-    [
-        dbc.Label("Select aggregation"),
-        dcc.Dropdown(
-            id='stat_measure_dropdown',
-            value='mean',
-            clearable=False,
-            options=[{'label': x, 'value': x} for x in ['max', 'min', 'median', 'mean']]
-        ),
-    ],
-    className="mb-4",
-)
-
 dropdown_projector = html.Div(
     [
         dbc.Label("Projector: "),
@@ -216,8 +202,8 @@ umap_graph = dcc.Graph(figure={})
 
 
 
-polar_measures_infidelity = dcc.Graph(figure={})
-polar_measures_sensitivity = dcc.Graph(figure={})
+graph_measures_infidelity = dcc.Graph(figure={})
+graph_measures_sensitivity = dcc.Graph(figure={})
 
 heatmap_agreement = dcc.Graph(figure={})
 heatmap_fuzzy = dcc.Graph(figure={})
@@ -242,9 +228,8 @@ tab1 = dbc.Tab(
     [
         dbc.Row(
             [
-                dropdown_stat_measure,
-                dbc.Col(dbc.Card([dbc.Label("Sensitivity"), polar_measures_sensitivity], body=True),width=6),
-                dbc.Col(dbc.Card([dbc.Label("Infidelity"), polar_measures_infidelity], body=True), width=6),   
+                dbc.Col(dbc.Card([dbc.Label("Sensitivity"), graph_measures_sensitivity], body=True),width=6),
+                dbc.Col(dbc.Card([dbc.Label("Infidelity"), graph_measures_infidelity], body=True), width=6),   
             ],
         ),
     ],
@@ -579,7 +564,15 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
         
     return fig
 
-def draw_polar_measures(df_lamp, methods, selected_dataset, selected_statistic='mean'):
+def draw_boxplot_measures(df_lamp, methods, selected_dataset):
+    
+    def set_area(row, agree_list, disagree_list, neutral_list):
+        if row['index'] in agree_list:
+            return 'Agreement Area'
+        if row['index'] in disagree_list:
+            return 'Disagreement Area'
+        return 'Neutral Area'
+
     size = size_datasets[selected_dataset]
     df_lamp = df_lamp.iloc[:size,:]
     agreement_points = df_lamp[df_lamp['Area'] == 'Agreement Area']['Index'].to_list()
@@ -587,94 +580,19 @@ def draw_polar_measures(df_lamp, methods, selected_dataset, selected_statistic='
     fuzzy_points = df_lamp[df_lamp['Area'] == 'Neutral Area']['Index'].to_list()
     
     feature_importance = FeatureImportance(selected_dataset)
-
-    inf_agree, sens_agree = feature_importance.get_measures_for_explanations(methods, selected_data=agreement_points)
-    inf_disagree, sens_disagree = feature_importance.get_measures_for_explanations(methods, selected_data=disagreement_points)
-    inf_fuzzy, sens_fuzzy = feature_importance.get_measures_for_explanations(methods, selected_data=fuzzy_points)
     
     
-    categories = inf_fuzzy['method'].to_list()
-
-    fig_inf = go.Figure()
-    fig_sens = go.Figure()
-
-    if len(agreement_points)!=0:
-        fig_inf.add_trace(go.Scatterpolar(
-              r = np.array(inf_agree[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Agreement',
-              marker=dict(
-                  color='#00cc96',
-              ),
-        ))
-        fig_sens.add_trace(go.Scatterpolar(
-              r = np.array(sens_agree[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Agreement',
-              marker=dict(
-                  color='#00cc96',
-              ),
-        ))
+    df_sens = feature_importance.get_measures_for_explanations(methods, 'sensitivity')
+    df_inf = feature_importance.get_measures_for_explanations(methods, 'infidelity')
     
-    if len(disagreement_points)!=0:
-        fig_inf.add_trace(go.Scatterpolar(
-              r = np.array(inf_disagree[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Disagreement',
-              marker=dict(
-                  color='#ef553b',
-              ),
-        ))
-        fig_sens.add_trace(go.Scatterpolar(
-              r = np.array(sens_disagree[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Disagreement',
-              marker=dict(
-                  color='#ef553b',
-              ),
-        ))
-        
-    if len(fuzzy_points)!=0:
-        fig_inf.add_trace(go.Scatterpolar(
-              r = np.array(inf_fuzzy[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Neutral',
-              marker=dict(
-                  color='#636efa',
-              ),
-        ))
-        fig_sens.add_trace(go.Scatterpolar(
-              r = np.array(sens_fuzzy[selected_statistic].to_list(), dtype=np.float32),
-              theta=categories,
-              fill='toself',
-              name='Neutral',
-              marker=dict(
-                  color='#636efa',
-              ),
-        ))
-        
-        
-    fig_inf.update_layout(
-      polar=dict(
-        radialaxis=dict(
-          visible=True,
-          #range=[0, 5]
-        )),
-      showlegend=True
-    )
-    fig_sens.update_layout(
-      polar=dict(
-        radialaxis=dict(
-          visible=True,
-          #range=[0, 5]
-        )),
-      showlegend=True
-    )
+    df_sens['area'] = df_sens.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
+    df_inf['area'] = df_inf.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
+
+    fig_sens = px.box(df_sens, x="method", y="sensitivity", color="area")
+    fig_sens.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
+    
+    fig_inf = px.box(df_inf, x="method", y="infidelity", color="area")
+    fig_inf.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
     
     return fig_inf, fig_sens
 
@@ -1029,15 +947,14 @@ def plot_embeddings(selected_data, lamp_value, matrix_points_value, list_methods
 
 
 @app.callback(
-    Output(polar_measures_infidelity, component_property='figure'),
-    Output(polar_measures_sensitivity, component_property='figure'),
+    Output(graph_measures_infidelity, component_property='figure'),
+    Output(graph_measures_sensitivity, component_property='figure'),
     Input('lamp-value', 'data'),
     State('explanation_methods_dropdown', 'value'),
     State('dataset_dropdown', 'value'),
-    Input('button-explanations', 'n_clicks'),
-    Input('stat_measure_dropdown', 'value')
+    Input('button-explanations', 'n_clicks')
 )
-def plot_polar_charts(lamp_value, list_methods, selected_dataset, button_explanations, sel_statistic):
+def plot_measures_charts(lamp_value, list_methods, selected_dataset, button_explanations):
     
     lamp_dataset = json.loads(lamp_value)
     lamp_df = pd.DataFrame.from_dict(lamp_dataset)
@@ -1046,7 +963,7 @@ def plot_polar_charts(lamp_value, list_methods, selected_dataset, button_explana
     if len(list_methods) != 4:
         return go.Figure(), go.Figure()
     
-    fig_inf, fig_sens = draw_polar_measures(lamp_df, list_methods, selected_dataset, selected_statistic=sel_statistic)
+    fig_inf, fig_sens = draw_boxplot_measures(lamp_df, list_methods, selected_dataset)
     return fig_inf, fig_sens
 
 

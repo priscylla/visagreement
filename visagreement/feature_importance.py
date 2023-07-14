@@ -12,8 +12,27 @@ class FeatureImportance():
         self.directory_explanations = "feature_importance"
         self.directory_quality = "quality_measures"
         
+        
+    def get_measures_for_explanations(self, methods, metric_name):
+        data = []
+        directory = './'+ self.directory_source + '/'+ self.name + '/' + self.directory_quality + '/'
+        for file_name in os.listdir(directory):
+            if file_name.endswith('.csv'):
+                method_name = re.search('(.+?).csv', file_name)
+                if method_name.group(1) in methods:
+                    file_path = os.path.join(directory, file_name)
+                    df = pd.read_csv(file_path)
+                    df = df[[metric_name]]
+                    df['method'] = method_name.group(1)
+                    data.append(df)
+        dfs = pd.concat(data)
+        dfs = dfs.reset_index()
+        return dfs
+                    
+                   
+        
     
-    def get_measures_for_explanations(self, methods, selected_data=None):
+    def get_start_measures_for_explanations(self, methods, selected_data=None):
         explanation_methods = []
         directory = './'+ self.directory_source + '/'+ self.name + '/' + self.directory_quality + '/'
         for file_name in os.listdir(directory):
