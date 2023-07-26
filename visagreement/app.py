@@ -16,6 +16,7 @@ from sklearn.metrics import recall_score
 import umap
 import numpy as np
 import pandas as pd
+from collections import Counter
 from itertools import product
 import json
 from itertools import combinations
@@ -444,23 +445,29 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
     df['Index'] = df.index    
     
     
+    #Change the size os point
+    # count the occurrences of each point
+    c = Counter(zip(df.Comp_1,df.Comp_2))
+    # create a list of the sizes, here multiplied by 10 for scale
+    s = [10*c[(xx,yy)] if 10*c[(xx,yy)]<=50 else 80+0.001*c[(xx,yy)] for xx,yy in zip(df.Comp_1,df.Comp_2)]
+    # insert in df
+    df['Size'] = s
+    symbols = ['circle', 'circle', 'circle', 'x']
+    
+    
     fig = px.scatter(df, x="Comp_1", y="Comp_2", color="Area",
-                     marginal_x="histogram", marginal_y="histogram",
+                     opacity=0.7, size="Size", symbol="Area", symbol_sequence = symbols,
                      hover_data={
                          'Area':True,
-                         'Index': True,
+                         'Index': False,
                          'Comp_1':False,
                          'Comp_2':False,
+                         'Size':False,
                      },
                     color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73", "#f0e442"],
                     category_orders={ # replaces default order by column name
                     "Area": ["Neutral Area", "Disagreement Area", "Agreement Area", "Control Point"]}
                     )
-    fig.update_traces(marker=dict(size=10,
-                              line=dict(width=1,
-                                        color='DarkSlateGrey')),
-                  selector=dict(mode='markers'))
-    
     fig.update_layout(legend=dict(
         orientation="h",
         yanchor="bottom",
@@ -468,6 +475,11 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
         xanchor="right",
         x=1
     ))
+    
+    fig.update_traces(marker=dict(#size=10,
+        line=dict(width=0.5, color='DarkSlateGrey')),
+                      selector=dict(mode='markers'))
+    
     fig.update_yaxes(title='y', visible=False, showticklabels=False)
     fig.update_xaxes(title='x', visible=False, showticklabels=False)
     fig.update_yaxes(range = [-0.1,1.1])
@@ -488,7 +500,7 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
     df_umap['Index'] = df_lamp['Index'].to_numpy()
     
     if selectedpoints is None:
-        fig = px.scatter(df_umap, x="Comp_1", y="Comp_2",#width=600, height=400,
+        fig = px.scatter(df_umap, x="Comp_1", y="Comp_2",opacity=0.7,
                          color="Area",
                          hover_data={
                              'Area':True,
@@ -541,7 +553,7 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                 showlegend=False,
                 name='Not selected',
                 marker=dict(size=8,
-                              line=dict(width=1,
+                              line=dict(width=0.5,
                                         color='DarkSlateGrey'))
             )
         )
@@ -558,7 +570,7 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                 showlegend=False,
                 name='Selected',
                 marker=dict(size=8,color='#0d2a68',
-                              line=dict(width=1,
+                              line=dict(width=0.5,
                                         color='DarkSlateGrey')),
             )
         )
