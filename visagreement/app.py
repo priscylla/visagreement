@@ -14,6 +14,7 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 
 import umap
+from sklearn.manifold import TSNE
 import numpy as np
 import pandas as pd
 from collections import Counter
@@ -49,9 +50,21 @@ def get_umap(dataset_names):
         size = X_test_umap.shape[0]
         size_datasets[name] = size
     return umap_values, size_datasets
+
+def get_tsne(dataset_names):
+    tsne_values = {}
+    for name in dataset_names:
+        dataset = Datasets(name)
+        datasets_list[name] = dataset
+        X_test = dataset.get_test_dataset()
+        reducer = TSNE(n_components=2, learning_rate='auto', random_state=42)
+        X_test_tsne = reducer.fit_transform(X_test)
+        tsne_values[name] = X_test_tsne
+    return tsne_values
     
     
 umap_datasets, size_datasets = get_umap(dataset_names)
+tsne_datasets = get_tsne(dataset_names)
 default_dataset = dataset_names[0]
 explanation_methods_names = []
 for file_name in os.listdir('./source/'+ default_dataset + '/feature_importance/'):
@@ -63,7 +76,7 @@ default_methods = explanation_methods_names[:4]
 dataset_names = [dataset_names[0]]
 
 #################################################
-# Instantiate our App
+# App
 #################################################
 # stylesheet with the .dbc class
 dbc_css = "https://cdn.jsdelivr.net/gh/AnnMarieW/dash-bootstrap-templates/dbc.min.css"
@@ -71,7 +84,7 @@ app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc_css])
 app.title = "Tool v1.0.0"
 
 #################################################
-# Incorporate data into App
+# Data
 #################################################
 
 options = {
@@ -125,7 +138,7 @@ dropdown_ranking_size = html.Div(
         dbc.Label("Top features size"),
         dcc.Dropdown(
             id='ranking_size_dropdown',
-            value=3,
+            value=5,
             clearable=False,
             options=[{'label': x, 'value': x} for x in np.arange(1,61,1)]
         ),
@@ -163,7 +176,7 @@ input_radio = html.Div(
     [
         dbc.Label("Threshold"),
         dcc.Input(
-            id="input_threshold_radio", type="number", value=0.45,
+            id="input_threshold_radio", type="number", value=0.35,
             min=0.05, max=0.7, step=0.05,
         ),
     ],
@@ -189,7 +202,7 @@ dropdown_projector = html.Div(
             id='projector_dropdown',
             value='UMAP',
             clearable=False,
-            options=[{'label': x, 'value': x} for x in ['UMAP']]
+            options=[{'label': x, 'value': x} for x in ['UMAP', 't-SNE']]
         ),
     ],
     #className="mb-4",
@@ -359,14 +372,14 @@ app.layout = dbc.Container(
 
 def calc_metrics(ranking_size, methods, metric, dict_topk):
     
-    # reduzindo o número de métodos devido a tempo de execução
+
     dict_topk = {k: v for k, v in dict_topk.items() if k in methods}
     
-    #num_instancias do dataset
+
     first_element = next(iter(dict_topk.items()))
     num_instancias = len(first_element[1])
     
-    # Matriz de pontos com as combinações dos métodos de explicação para a função feature agreement
+
     matrix_points, list_combinations_methods = mt.create_matrix_combination_methdos_by_metric(dict_topk, metric, num_instancias, methods)
     
     
@@ -388,17 +401,17 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
     
     ################### LAMP calc
     # creating the control points
-    sample_size = matrix_points.shape[1] #Número de combinações, por enquanto é sempre 6
+    sample_size = matrix_points.shape[1] 
     table = list(product([0, 1], repeat=sample_size))
     ctp_samples = []
     for i in table:
         ctp_samples.append(list(i))
         
-    #transformando os pontos de controle de lista para numpy array
+    #
     ctp_samples = np.asarray(ctp_samples)
     
-    # NEW
-    control_points_samples = np.array(ctp_samples) #NEW
+    #
+    control_points_samples = np.array(ctp_samples) #
     df_ctp_5d = pd.DataFrame(control_points_samples)
     n_5d = df_ctp_5d.shape[0]
     cp_positions__ = util.control_points_position(control_points_samples)
@@ -411,7 +424,7 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
     lamp_proj = Lamp(Xdata = data, control_points = ctp_2d, label=False)
     data_proj = lamp_proj.fit()
     cp_positions = np.asarray(cp_positions__)
-    # End New                                                                                          
+    #                                                                                          
     
     #build lamp plot
     size_dataset = len(matrix_points)
@@ -436,21 +449,19 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
     df2['Class'] = 'Control Point'
     df2['Area'] = 'Control Point'
     
-    # Filtrando os pontos de controle para mostrar apenas o 0,0 e 1,1
-    # Se desejar mostrar todos, basta remover essa linha
+    #
+    #
     df2 = df2.iloc[[0, len(df2)-1]] 
     
     df = pd.concat([df, df2])
     df = df.reset_index()
     df['Index'] = df.index    
     
-    
-    #Change the size os point
-    # count the occurrences of each point
+    #
     c = Counter(zip(df.Comp_1,df.Comp_2))
-    # create a list of the sizes, here multiplied by 10 for scale
+    #
     s = [10*c[(xx,yy)] if 10*c[(xx,yy)]<=50 else 80+0.001*c[(xx,yy)] for xx,yy in zip(df.Comp_1,df.Comp_2)]
-    # insert in df
+    #
     df['Size'] = s
     symbols = ['circle', 'circle', 'circle', 'x']
     
@@ -475,7 +486,6 @@ def draw_lamp(ranking_size, metric, methods, threshold_radius, selected_dataset,
         xanchor="right",
         x=1
     ))
-    
     fig.update_traces(marker=dict(#size=10,
         line=dict(width=0.5, color='DarkSlateGrey')),
                       selector=dict(mode='markers'))
@@ -491,6 +501,9 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
     if projector=='UMAP':
         X_test_umap = umap_datasets[selected_dataset]
         df_umap = pd.DataFrame(X_test_umap, columns=["Comp_1", "Comp_2"])
+    else:
+        X_test_tsne = tsne_datasets[selected_dataset]
+        df_umap = pd.DataFrame(X_test_tsne, columns=["Comp_1", "Comp_2"])
     
     
     df_lamp = df_lamp.iloc[:len(df_umap),:]
@@ -500,7 +513,8 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
     df_umap['Index'] = df_lamp['Index'].to_numpy()
     
     if selectedpoints is None:
-        fig = px.scatter(df_umap, x="Comp_1", y="Comp_2",opacity=0.7,
+        fig = px.scatter(df_umap, x="Comp_1", y="Comp_2",#width=600, height=400,
+                         opacity=0.7,
                          color="Area",
                          hover_data={
                              'Area':True,
@@ -513,12 +527,6 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                              "Area": ["Neutral Area", "Disagreement Area", "Agreement Area"]
                          }
                     )
-        
-        fig.update_traces(marker=dict(size=8,
-                              line=dict(width=1,
-                                        color='DarkSlateGrey')),
-                  selector=dict(mode='markers'))
-        
         fig.update_layout(legend=dict(
             orientation="h",
             yanchor="bottom",
@@ -526,12 +534,18 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
             xanchor="right",
             x=1
         ))
+        
+        fig.update_traces(marker=dict(size=8,
+                              line=dict(width=0.5,
+                                        color='DarkSlateGrey')),
+                  selector=dict(mode='markers'))
+        
         fig.update_yaxes(title='y', visible=False, showticklabels=False)
         fig.update_xaxes(title='x', visible=False, showticklabels=False)
     else:
         df_selectedpoints = df_umap.iloc[selectedpoints]
         df_umap = df_umap.loc[df_umap.index.difference(selectedpoints), :]
-        # Build figure
+        #
         fig = go.Figure(
             layout = {
                 'xaxis': {'title': 'x-label',
@@ -557,8 +571,8 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                                         color='DarkSlateGrey'))
             )
         )
-        # Add second scatter trace with medium sized markers
-        # and opacity 1.0
+        # 
+        # 
         fig.add_trace(
             go.Scatter(
                 mode='markers',
@@ -574,11 +588,9 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
                                         color='DarkSlateGrey')),
             )
         )
-        #Layout of the chart
+        #
         fig.update_layout(
             autosize=True,
-            #width=600,
-            #height=400,
             legend=dict(
                 orientation="h",
                 yanchor="bottom",
@@ -589,6 +601,7 @@ def draw_umap(df_lamp, projector, selected_dataset, selectedpoints=None):
         )
         
     return fig
+
 
 def draw_boxplot_measures(df_lamp, methods, selected_dataset):
     
@@ -611,16 +624,28 @@ def draw_boxplot_measures(df_lamp, methods, selected_dataset):
     df_sens = feature_importance.get_measures_for_explanations(methods, 'sensitivity')
     df_inf = feature_importance.get_measures_for_explanations(methods, 'infidelity')
     
-    df_sens['area'] = df_sens.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
-    df_inf['area'] = df_inf.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
+    df_sens['Area'] = df_sens.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
+    df_inf['Area'] = df_inf.apply(lambda x: set_area(x, agreement_points, disagreement_points, fuzzy_points), axis=1)
 
-    fig_sens = px.box(df_sens, x="method", y="sensitivity", color="area",
-                     color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73"])
-    fig_sens.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
+    fig_sens = px.box(df_sens, x="method", y="sensitivity", color="Area",
+                      color_discrete_map={"Neutral Area": "#cc79a7", 
+                                          "Disagreement Area": "#0072b2", 
+                                          "Agreement Area": "#009e73"},
+                      category_orders={ # replaces default order by column name
+                             "Area": ["Neutral Area", "Disagreement Area", "Agreement Area"]
+                         }
+                     )
+    fig_sens.update_traces(quartilemethod="exclusive") # 
     
-    fig_inf = px.box(df_inf, x="method", y="infidelity", color="area",
-                    color_discrete_sequence=["#cc79a7", "#0072b2", "#009e73"])
-    fig_inf.update_traces(quartilemethod="exclusive") # or "inclusive", or "linear" by default
+    fig_inf = px.box(df_inf, x="method", y="infidelity", color="Area",
+                     color_discrete_map={"Neutral Area": "#cc79a7", 
+                                          "Disagreement Area": "#0072b2", 
+                                          "Agreement Area": "#009e73"},
+                     category_orders={ # replaces default order by column name
+                             "Area": ["Neutral Area", "Disagreement Area", "Agreement Area"]
+                         }
+                    )
+    fig_inf.update_traces(quartilemethod="exclusive") #
     
     return fig_inf, fig_sens
 
@@ -639,23 +664,25 @@ def draw_heatmaps(df_lamp, matrix_points, list_combinations_methods, selected_da
     disagreement_fig = go.Figure()
     
     if len(agreement_points)!= 0:
-        agreement_fig = px.imshow(df.loc[df.index[agreement_points]],text_auto=False,color_continuous_scale='Blues',
-                                  zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
-                        #x=list_combinations_methods#,width=2000, height=800
+        agreement_fig = px.imshow(df.loc[df.index[agreement_points]],text_auto=False,
+                                  color_continuous_scale='Blues',
+                                  zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances", x="Pairs of explanation methods"),
                    )
+        agreement_fig.update_yaxes(showticklabels=False)
     
     if len(fuzzy_points)!= 0:
-        fuzzy_fig = px.imshow(df.loc[df.index[fuzzy_points]],text_auto=False,color_continuous_scale='Blues',
-                              zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
-                        #x=list_combinations_methods#,width=2000, height=800
+        fuzzy_fig = px.imshow(df.loc[df.index[fuzzy_points]],text_auto=False,
+                              color_continuous_scale='Blues',
+                              zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances", x="Pairs of explanation methods"),
                    )
+        fuzzy_fig.update_yaxes(showticklabels=False)
         
     if len(disagreement_points)!= 0:
-        disagreement_fig = px.imshow(df.loc[df.index[disagreement_points]],text_auto=False,color_continuous_scale='Blues',
-                                     zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances"),
-                        #x=list_combinations_methods#,width=2000, height=800
+        disagreement_fig = px.imshow(df.loc[df.index[disagreement_points]],text_auto=False,
+                                     color_continuous_scale='Blues',
+                                     zmin=0, zmax=1, labels=dict(color="Agreement Level", y="Instances", x="Pairs of explanation methods"),
                    )
-        
+        disagreement_fig.update_yaxes(showticklabels=False)
         
     
     return agreement_fig, fuzzy_fig, disagreement_fig
@@ -756,6 +783,9 @@ def draw_features_disagreement(methods, selected_dataset, ranking_size, metric, 
             showticklabels=False,
             zeroline=False,
         ),
+        xaxis_title="Proportion of disagreements",
+        yaxis_title="Pairs of explanation methods",
+        legend_title="Features",
     )
     
     return fig
@@ -794,11 +824,9 @@ def draw_confusion_matrix(df_predictions, selectedData):
                     aspect="auto",
                     color_continuous_scale='Blues'
                    )
-        fig.update_layout(
-            font=dict(
-                size=18,
-            )
-        )
+        fig.update_traces(textfont=dict(size=42))
+        fig.update_layout(font=dict(size=18))
+        
     return fig
 
 def draw_table_model_metrics(df_predictions, selected_data):
@@ -983,7 +1011,6 @@ def plot_embeddings(selected_data, lamp_value, matrix_points_value, list_methods
                         metric = options[selected_metric]
                         html_lamp_graph, df_lamp, matrix_points, list_combinations_methods = draw_lamp(selected_ranking_size, metric, methods, threshold_radius, selected_dataset, area_marking_automatic, sel_indices_manual=indices, sel_area_manual=area, df_lamp_prev=lamp_df)
                         html_umap_graph = draw_umap(df_lamp, selected_projector, selected_dataset)
-                        #return deve ir pra saída final
                     else:
                         html_umap_graph = draw_umap(lamp_df, selected_projector, selected_dataset, indices)
                         return current_lamp_fig, html_umap_graph, lamp_value, matrix_points_value, list_methods_value, all_explanation_methods_options, methods, input_warning, btn_disagree, btn_agree, btn_clear
